@@ -1,6 +1,6 @@
 {
   "name": "goosetrack",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Mongoose plugin to keep track of specific properties updates",
   "main": "index.js",
   "repository": "https://github.com/ndelvalle/goosetrack.git",
