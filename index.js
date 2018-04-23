@@ -7,32 +7,34 @@ function isReferenceInQuery(query, reference) {
   if (typeof query[reference] !== 'undefined') {
     return true
   }
-  return query.$set && query.$set[reference] !== 'undefined'
+  return query.$set && typeof query.$set[reference] !== 'undefined'
 }
 
 function trackProperties(schema, properties) {
-  properties.forEach(({ reference, name }) => {
-    if (!schema.path(name)) {
-      schema.add({ [name]: { type: Date, index: true } })
+  properties.forEach(({ ref, definition, onUpdate }) => {
+    const [property] = Object.keys(definition)
+
+    if (!schema.path(property)) {
+      schema.add(definition)
     }
 
     schema.pre('save', function preSave(next) {
-      if (this.isModified(reference)) {
-        this[name] = new Date()
+      if (this.isModified(ref)) {
+        this[property] = onUpdate()
       }
       next()
     })
 
     schema.pre('findOneAndUpdate', function preFindOneAndUpdate(next) {
-      if (isReferenceInQuery(this.getUpdate(), reference)) {
-        this.update({}, { [name]: new Date() })
+      if (isReferenceInQuery(this.getUpdate(), ref)) {
+        this.findOneAndUpdate({}, { [property]: onUpdate() })
       }
       next()
     })
 
     schema.pre('update', function preUpdate(next) {
-      if (isReferenceInQuery(this.getUpdate(), reference)) {
-        this.update({}, { [name]: new Date() })
+      if (isReferenceInQuery(this.getUpdate(), ref)) {
+        this.update({}, { [property]: onUpdate(this) })
       }
       next()
     })
@@ -40,28 +42,22 @@ function trackProperties(schema, properties) {
 }
 
 function trackPlugin(schema, options) {
-  const updatedAt =
-    options.updatedAt === 'undefined' ? 'updatedAt' : options.updatedAt
-  const createdAt =
-    options.createdAt === 'undefined' ? 'createdAt' : options.createdAt
+  const o = options
+  const updatedAt = typeof o.updatedAt === 'undefined' ? 'updatedAt' : o.updatedAt
+  const createdAt = typeof o.createdAt === 'undefined' ? 'createdAt' : o.createdAt
   const properties = options.properties || []
 
-  const props = properties.map((option) => ({
-    reference: option.reference,
-    name: option.name || `${option.reference}UpdatedAt`,
-  }))
-
-  trackProperties(schema, props)
+  trackProperties(schema, properties)
 
   if (!updatedAt && !createdAt) {
     return
   }
 
   if (updatedAt && !schema.path(updatedAt)) {
-    schema.add({ [updatedAt]: { type: Date, index: true } })
+    schema.add({ [updatedAt]: { type: Date } })
   }
   if (createdAt && !schema.path(createdAt)) {
-    schema.add({ [createdAt]: { type: Date, index: true } })
+    schema.add({ [createdAt]: { type: Date } })
   }
 
   schema.pre('save', function preSave(next) {
